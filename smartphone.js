@@ -417,8 +417,8 @@ async function showPhone() {
         showDesktop(dom);
         await popup.show();
     } catch (err) {
-        console.error('Phone error:', err);
-        toastr.error('手机加载失败');
+        console.error('Phone error:', err?.message || err, err?.stack || '');
+        toastr.error('手机加载失败: ' + ((err?.message || err?.toString())).substring(0, 80));
     }
 }
 
