@@ -66,6 +66,20 @@ const CSS = `
 .cal-event-title { font-size:13px; font-weight:600; }
 .cal-event-date { font-size:10px; color:rgba(255,255,255,0.35); margin:2px 0 3px; }
 .cal-event-desc { font-size:11px; color:rgba(255,255,255,0.45); line-height:1.3; }
+.qoo-item { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+.qoo-item:active { background:rgba(255,255,255,0.03); }
+.qoo-num { font-size:10px; color:rgba(255,255,255,0.25); }
+.qoo-title { font-size:13px; font-weight:600; margin:4px 0 6px; }
+.qoo-preview { font-size:11px; color:rgba(255,255,255,0.4); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.qoo-detail-header { font-size:12px; color:rgba(255,255,255,0.35); padding:4px 0 6px; }
+.qoo-detail-title { font-size:15px; font-weight:700; margin:6px 0 12px; }
+.qoo-detail-body { font-size:12px; color:rgba(255,255,255,0.7); line-height:1.7; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:12px; }
+.qoo-comment { padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.03); font-size:11px; line-height:1.5; color:rgba(255,255,255,0.6); }
+.qoo-comment-num { color:rgba(255,255,255,0.25); margin-right:6px; }
+.qoo-gen-btn { display:flex; justify-content:center; padding:12px; }
+.qoo-gen-btn button { background:linear-gradient(135deg,#ff4785,#6c5ce7); color:#fff; border:none; padding:8px 24px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; }
+.qoo-gen-btn button:disabled { opacity:0.4; cursor:wait; }
+.qoo-loading { text-align:center; padding:30px; color:rgba(255,255,255,0.4); font-size:13px; }
 </style>
 `;
 
@@ -355,6 +369,121 @@ function showCalendar(dom) {
     render(viewDate);
 }
 
+// ===================== TheQoo =====================
+
+function parseQooPosts(raw) {
+    if (!raw) return [];
+    const posts = [];
+    const sections = raw.split(/(?=\d{5}\|)/);
+    for (const s of sections) {
+        const lines = s.trim().split('\n');
+        if (lines.length < 2) continue;
+        const header = lines[0].split('|');
+        if (header.length < 3) continue;
+        const opText = lines[1]?.replace(/^楼主[：:]\s*/, '') || '';
+        const comments = [];
+        for (let i = 2; i < lines.length; i++) {
+            comments.push(lines[i].replace(/^\[\d+\]\s*：?\s*/, '').trim());
+        }
+        posts.push({ num: header[0].trim(), title: header[1].trim(), time: header[2].trim(), opText, comments });
+    }
+    return posts;
+}
+
+async function showTheQoo(dom) {
+    const body = dom.querySelector('#phone-body');
+    const entry = getEntry('[手机-TheQoo]');
+    const posts = entry ? parseQooPosts(entry.content) : [];
+
+    function renderList() {
+        let h = '<div class="phone-navbar"><div class="phone-navbar-back" data-back="desktop">‹</div><div class="phone-navbar-title">TheQoo</div></div>';
+        if (!posts.length) {
+            h += '<div class="phone-empty">还没有帖子，点击下方按钮生成</div>';
+        } else {
+            posts.forEach((p, i) => {
+                h += `<div class="qoo-item" data-post="${i}"><div class="qoo-num">#${_.escape(p.num)} · ${_.escape(p.time)}</div><div class="qoo-title">${_.escape(p.title)}</div><div class="qoo-preview">${_.escape(p.opText)}</div></div>`;
+            });
+        }
+        h += '<div class="qoo-gen-btn"><button id="qoo-gen">🔄 生成最新热帖</button></div>';
+        body.innerHTML = h;
+        bindBack(dom);
+        dom.querySelectorAll('.qoo-item').forEach(el => {
+            el.addEventListener('click', () => showPostDetail(parseInt(el.dataset.post)));
+        });
+        dom.querySelector('#qoo-gen')?.addEventListener('click', generatePosts);
+    }
+
+    function showPostDetail(idx) {
+        const p = posts[idx];
+        if (!p) return;
+        let h = '<div class="phone-navbar"><span class="phone-navbar-back" data-back="theqoo">‹</span><div class="phone-navbar-title">帖子详情</div></div>';
+        h += `<div style="padding:14px 16px;"><div class="qoo-detail-header">TheQoo · #${_.escape(p.num)} · ${_.escape(p.time)}</div><div class="qoo-detail-title">${_.escape(p.title)}</div><div class="qoo-detail-body">${_.escape(p.opText)}</div>`;
+        if (p.comments.length) {
+            h += '<div style="font-size:11px;color:rgba(255,255,255,0.3);margin-bottom:8px;">评论 ' + p.comments.length + '</div>';
+            p.comments.forEach((c, j) => {
+                h += `<div class="qoo-comment"><span class="qoo-comment-num">${j+1}.</span>${_.escape(c)}</div>`;
+            });
+        }
+        h += '</div>';
+        body.innerHTML = h;
+        dom.querySelector('[data-back="theqoo"]')?.addEventListener('click', renderList);
+    }
+
+    async function generatePosts() {
+        const btn = dom.querySelector('#qoo-gen');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中...'; }
+        try {
+            const ctx = SillyTavern.getContext();
+            const recentMsgs = (ctx.chat || []).slice(-20).map(m => {
+                const who = m.is_user ? ctx.name1 : (m.name || ctx.name2);
+                return who + ': ' + (m.mes || '').substring(0, 300);
+            }).join('\n');
+
+            const prompt = `You are generating Korean forum posts for "TheQoo" (더쿠). Based on the recent story events below, create 3-5 posts in this EXACT format (each post separated by blank line, NO markdown formatting):
+
+编号|帖子标题(韩文)|发布时间
+楼主: (1-2 sentences, Korean only)
+[1] (comment in Korean)
+[2] (comment in Korean)
+[3] (comment in Korean)
+(5-8 comments total per post)
+
+Title topics: netizens reacting to the latest idol news/drama/scandals related to the characters. Posts should feel like real Korean forum posts — some supportive, some skeptical, some funny. The tone varies from post to post.
+
+Recent events:
+${recentMsgs}`;
+
+            const doGen = SillyTavern.generateQuietPrompt();
+            const result = await doGen(prompt, false, true, null, 'TheQoo Bot', 1500);
+
+            // Parse generated content into posts
+            const newPosts = parseQooPosts(result || '');
+            if (newPosts.length) {
+                // Prepend new posts to existing
+                posts.unshift(...newPosts);
+                // Keep max 15 posts
+                posts.splice(15);
+                // Save to world book
+                const content = posts.map(p => {
+                    let s = `${p.num}|${p.title}|${p.time}\n楼主: ${p.opText}`;
+                    p.comments.forEach(c => { s += `\n${c}`; });
+                    return s;
+                }).join('\n\n');
+                setEntry('[手机-TheQoo]', content);
+                toastr.success(`已生成 ${newPosts.length} 条TheQoo热帖`);
+            } else {
+                toastr.warning('生成失败，请重试');
+            }
+        } catch (err) {
+            console.error('TheQoo gen error:', err);
+            toastr.error('生成失败: ' + ((err?.message || err?.toString())).substring(0, 60));
+        }
+        renderList();
+    }
+
+    renderList();
+}
+
 // ===================== 桌面 =====================
 
 function showDesktop(dom) {
@@ -373,12 +502,17 @@ function showDesktop(dom) {
             <div class="desktop-app-icon" style="background:#1a1a2a;">📅</div>
             <div class="desktop-app-label">Calendar</div>
         </div>
+        <div class="desktop-app" data-app="theqoo">
+            <div class="desktop-app-icon" style="background:#2a1a2a;">🌐</div>
+            <div class="desktop-app-label">TheQoo</div>
+        </div>
     </div>`;
     dom.querySelectorAll('.desktop-app').forEach(el => {
         el.addEventListener('click', () => {
             if (el.dataset.app === 'kakaotalk') showKakaoTalk(dom);
             else if (el.dataset.app === 'youtube') showYouTube(dom);
             else if (el.dataset.app === 'calendar') showCalendar(dom);
+            else if (el.dataset.app === 'theqoo') showTheQoo(dom);
         });
     });
 }
@@ -471,6 +605,7 @@ function buildDefaultVideos() {
 function ensureAllEntries() {
     setEntry('[手机-KakaoTalk]', buildDefaultChats());
     setEntry('[手机-YouTube]', buildDefaultVideos());
+    setEntry('[手机-TheQoo]', '');
 }
 
 // ===================== 弹窗 =====================
