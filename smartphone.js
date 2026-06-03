@@ -230,12 +230,15 @@ function showYouTube(dom) {
         bindBack(dom);
         return;
     }
+    const visible = allVideos.filter(v => isAvailable(v.date));
+    if (!visible.length) {
+        body.innerHTML = h + '<div class="phone-empty">暂无已发布视频</div>';
+        bindBack(dom);
+        return;
+    }
     h += '<div class="yt-list">';
-    allVideos.forEach((v, i) => {
-        const avail = isAvailable(v.date);
-        const lockCls = avail ? '' : ' yt-locked';
-        const futureLabel = !avail ? `<span class="future-tag">${daysUntil(v.date)||'即将发布'}</span>` : '';
-        h += `<div class="yt-video${lockCls}"><div class="yt-thumb" style="background:${ytColor(i)};">${avail?'▶':'🔒'}</div><div class="yt-info"><div class="yt-title">${_.escape(v.title)}${futureLabel}</div><div class="yt-channel">${_.escape(v.channel)}</div><div class="yt-meta">${_.escape(v.views||'')}</div></div></div>`;
+    visible.forEach((v, i) => {
+        h += `<div class="yt-video"><div class="yt-thumb" style="background:${ytColor(i)};">▶</div><div class="yt-info"><div class="yt-title">${_.escape(v.title)}</div><div class="yt-channel">${_.escape(v.channel)}</div><div class="yt-meta">${_.escape(v.views||'')}</div></div></div>`;
     });
     body.innerHTML = h + '</div>';
     bindBack(dom);
