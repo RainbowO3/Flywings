@@ -106,11 +106,19 @@ function setEntry(key, content) {
     SillyTavern.saveSettingsDebounced();
 }
 
+// ===================== Mvu 安全访问 =====================
+// import 模式运行在严格模式，裸 Mvu 会 ReferenceError，走 window 取
+
+function mvuData() {
+    try { return window.mvuData(); }
+    catch(e) { return null; }
+}
+
 // ===================== 日期 & 过滤 =====================
 
 function getNowDate() {
     try {
-        const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
+        const mvu = mvuData();
         return _.get(mvu, 'stat_data.世界.日期') || '';
     } catch(e) { return ''; }
 }
@@ -250,7 +258,7 @@ const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 function getEvents() {
     try {
-        const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
+        const mvu = mvuData();
         const schedule = _.get(mvu, 'stat_data.flywings.回归日程.日程');
         if (!schedule || _.isEmpty(schedule)) return [];
         const worldDate = getNowDate();
@@ -403,7 +411,7 @@ function buildDefaultChats() {
 function buildDefaultVideos() {
     const lines = [];
     try {
-        const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
+        const mvu = mvuData();
         const schedule = _.get(mvu, 'stat_data.flywings.回归日程.日程');
         const materials = _.get(mvu, 'stat_data.flywings.目前物料列表');
         const work = _.get(mvu, 'stat_data.flywings.目前作品详情');
@@ -469,7 +477,7 @@ function ensureAllEntries() {
 
 async function showPhone() {
     try {
-        const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
+        const mvu = mvuData();
         const t = _.get(mvu, 'stat_data.世界.时间', '');
         const timeStr = t ? t.substring(0,5) : new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
 
