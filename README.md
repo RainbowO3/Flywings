@@ -1,17 +1,12 @@
 # Flywings Scripts
 
-酒馆助手 (TavernHelper) 脚本集。
+## Smartphone
 
-## 小手机
+- `smartphone.js` — Script source
+- `smartphone-import.json` — TavernHelper import file
 
-- `小手机.js` — 脚本源码
-- `小手机-import.json` — 酒馆助手导入文件
+### Import URL
 
-### 导入方式
-
-酒馆助手 → 导入脚本 → 选择 `小手机-import.json`
-
-或通过 URL 导入:
 ```
-https://raw.githubusercontent.com/RainbowO3/Flywings/main/小手机-import.json
+https://raw.githubusercontent.com/RainbowO3/Flywings/main/smartphone-import.json
 ```
