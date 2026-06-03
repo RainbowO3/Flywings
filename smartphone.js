@@ -49,16 +49,23 @@ const CSS = `
 .phone-navbar-title { font-size:16px; font-weight:700; }
 .phone-empty { text-align:center; color:rgba(255,255,255,0.25); padding:60px 20px; font-size:13px; }
 .future-tag { font-size:10px; background:rgba(108,92,231,0.3); color:#6c5ce7; padding:1px 6px; border-radius:6px; margin-left:6px; }
-.cal-phase { padding:12px 14px; border-left:2px solid rgba(255,255,255,0.1); margin-left:8px; position:relative; }
-.cal-phase:last-child { border-left-color:transparent; }
-.cal-phase::before { content:''; width:8px; height:8px; border-radius:50%; background:#333; position:absolute; left:-5px; top:15px; }
-.cal-phase.current { border-left-color:#6c5ce7; }
-.cal-phase.current::before { background:#6c5ce7; box-shadow:0 0 6px #6c5ce7; }
-.cal-phase.past { border-left-color:rgba(255,255,255,0.05); opacity:0.35; }
-.cal-phase.past::before { background:#222; }
-.cal-phase-title { font-size:13px; font-weight:600; margin-bottom:2px; }
-.cal-phase-date { font-size:10px; color:rgba(255,255,255,0.35); margin-bottom:4px; }
-.cal-phase-desc { font-size:11px; color:rgba(255,255,255,0.5); line-height:1.4; }
+.cal-header { display:flex; justify-content:space-between; align-items:center; padding:4px 8px 12px; }
+.cal-month { font-size:15px; font-weight:700; }
+.cal-nav { cursor:pointer; font-size:18px; color:#6c5ce7; padding:4px 8px; user-select:none; }
+.cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:rgba(255,255,255,0.35); padding:0 4px 6px; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; padding:0 4px; }
+.cal-day { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:50%; font-size:12px; cursor:pointer; position:relative; }
+.cal-day.other { color:rgba(255,255,255,0.15); }
+.cal-day.today { background:#6c5ce7; color:#fff; font-weight:700; }
+.cal-day.selected { background:rgba(108,92,231,0.3); }
+.cal-dot { width:4px; height:4px; border-radius:50%; background:#6c5ce7; position:absolute; bottom:3px; }
+.cal-day.today .cal-dot { background:#fff; }
+.cal-events { margin-top:10px; padding:0 8px; }
+.cal-event { padding:10px 12px; border-radius:10px; margin-bottom:6px; background:rgba(255,255,255,0.04); border-left:3px solid #6c5ce7; }
+.cal-event.past { opacity:0.3; border-left-color:#333; }
+.cal-event-title { font-size:13px; font-weight:600; }
+.cal-event-date { font-size:10px; color:rgba(255,255,255,0.35); margin:2px 0 3px; }
+.cal-event-desc { font-size:11px; color:rgba(255,255,255,0.45); line-height:1.3; }
 </style>
 `;
 
@@ -234,52 +241,107 @@ function showYouTube(dom) {
     bindBack(dom);
 }
 
-// ===================== Calendar =====================
+// ===================== Calendar (iOS style) =====================
 
-function showCalendar(dom) {
-    const body = dom.querySelector('#phone-body');
-    let h = '<div class="phone-navbar"><div class="phone-navbar-back" data-back="desktop">‹</div><div class="phone-navbar-title">Calendar</div></div>';
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
+function getEvents() {
     try {
         const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
         const schedule = _.get(mvu, 'stat_data.flywings.回归日程.日程');
+        if (!schedule || _.isEmpty(schedule)) return [];
         const worldDate = getNowDate();
         const currentPhase = _.get(mvu, 'stat_data.flywings.回归日程.当前阶段') || '';
+        return Object.entries(schedule).map(([name, info]) => ({
+            name, current: currentPhase === name,
+            start: info.开始 || info.日期 || '',
+            end: info.结束 || '',
+            desc: info.内容 || '',
+            key: (info.开始 || info.日期 || '').replace(/-/g,'')
+        }));
+    } catch(e) { return []; }
+}
 
-        if (!schedule || _.isEmpty(schedule)) {
-            body.innerHTML = h + '<div class="phone-empty">暂无行程安排</div>';
-            bindBack(dom);
-            return;
-        }
+function showCalendar(dom) {
+    const body = dom.querySelector('#phone-body');
+    const events = getEvents();
 
-        h += '<div style="padding:8px 16px;">';
-        Object.entries(schedule).forEach(([name, info]) => {
-            const start = info.开始 || info.日期 || '';
-            const end = info.结束 || '';
-            const dateRange = start && end ? `${start} → ${end}` : start;
-            const desc = info.内容 || '';
+    // 初始化当月
+    const todayStr = getNowDate();
+    let viewDate = todayStr ? new Date(todayStr) : new Date();
+    if (isNaN(viewDate.getTime())) viewDate = new Date();
 
-            // 判断状态：当前、过去、未来
-            let cls = '';
-            if (currentPhase === name) {
-                cls = ' current';
-            } else if (end && worldDate && dateNum(end) < dateNum(worldDate)) {
-                cls = ' past';
+    function render(view) {
+        const y = view.getFullYear(), m = view.getMonth();
+        const firstDay = new Date(y, m, 1).getDay();
+        const daysInMonth = new Date(y, m+1, 0).getDate();
+        const daysInPrev = new Date(y, m, 0).getDate();
+        const todayKey = todayStr.replace(/-/g,'');
+
+        // 日期 → 有事件的 keys
+        const eventDays = new Set();
+        events.forEach(ev => {
+            if (ev.start) {
+                const s = new Date(ev.start);
+                if (s.getFullYear()===y && s.getMonth()===m) eventDays.add(s.getDate());
             }
-
-            h += `<div class="cal-phase${cls}">
-                <div class="cal-phase-title">${cls.includes('current')?'● ':''}${_.escape(name)}</div>
-                <div class="cal-phase-date">${_.escape(dateRange)}</div>
-                <div class="cal-phase-desc">${_.escape(desc)}</div>
-            </div>`;
         });
+
+        let h = '<div class="phone-navbar"><div class="phone-navbar-back" data-back="desktop">‹</div><div class="phone-navbar-title">Calendar</div></div>';
+        h += `<div class="cal-header"><span class="cal-nav" data-nav="-1">‹</span><span class="cal-month">${y}年${m+1}月</span><span class="cal-nav" data-nav="1">›</span></div>`;
+        h += `<div class="cal-weekdays">${WEEKDAYS.map(d=>`<span>${d}</span>`).join('')}</div>`;
+        h += '<div class="cal-grid">';
+
+        // 上月填充
+        for (let i = firstDay-1; i >= 0; i--) {
+            h += `<div class="cal-day other">${daysInPrev-i}</div>`;
+        }
+        // 本月
+        for (let d = 1; d <= daysInMonth; d++) {
+            const key = `${y}${String(m+1).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+            const isToday = key === todayKey;
+            const hasEvent = eventDays.has(d);
+            h += `<div class="cal-day${isToday?' today':''}" data-day="${key}">${d}${hasEvent?`<span class="cal-dot"></span>`:''}</div>`;
+        }
+        // 下月填充
+        const remaining = (7 - ((firstDay + daysInMonth) % 7)) % 7;
+        for (let d = 1; d <= remaining; d++) {
+            h += `<div class="cal-day other">${d}</div>`;
+        }
         h += '</div>';
-    } catch(e) {
-        h += '<div class="phone-empty">读取日程失败</div>';
+
+        // 事件列表（当月有事件的）
+        h += '<div class="cal-events">';
+        const monthEvents = events.filter(ev => {
+            if (!ev.start) return false;
+            const s = new Date(ev.start);
+            return s.getFullYear()===y && s.getMonth()===m;
+        });
+        if (!monthEvents.length) {
+            h += '<div class="phone-empty" style="padding:20px;">本月暂无行程</div>';
+        } else {
+            monthEvents.forEach(ev => {
+                const cls = ev.current ? '' : (ev.end && todayStr && dateNum(ev.end)<dateNum(todayStr) ? ' past' : '');
+                h += `<div class="cal-event${cls}"><div class="cal-event-title">${ev.current?'● ':''}${_.escape(ev.name)}</div><div class="cal-event-date">${_.escape(ev.start+(ev.end?' → '+ev.end:''))}</div><div class="cal-event-desc">${_.escape(ev.desc)}</div></div>`;
+            });
+        }
+        h += '</div>';
+
+        body.innerHTML = h;
+        bindBack(dom);
+
+        // 导航
+        dom.querySelector('[data-nav="-1"]')?.addEventListener('click', () => {
+            viewDate.setMonth(viewDate.getMonth() - 1);
+            render(viewDate);
+        });
+        dom.querySelector('[data-nav="1"]')?.addEventListener('click', () => {
+            viewDate.setMonth(viewDate.getMonth() + 1);
+            render(viewDate);
+        });
     }
 
-    body.innerHTML = h;
-    bindBack(dom);
+    render(viewDate);
 }
 
 // ===================== 桌面 =====================
