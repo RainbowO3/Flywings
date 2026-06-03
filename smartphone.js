@@ -439,22 +439,22 @@ async function showTheQoo(dom) {
                 return who + ': ' + (m.mes || '').substring(0, 300);
             }).join('\n');
 
-            const prompt = `You are generating Korean forum posts for "TheQoo" (더쿠). Based on the recent story events below, create 3-5 posts in this EXACT format (each post separated by blank line, NO markdown formatting):
+            const prompt = `You are generating Korean forum posts for "TheQoo" (더쿠). Based on the recent story events below, create 10 posts in this EXACT format (each post separated by blank line, NO markdown formatting):
 
 编号|帖子标题(韩文)|发布时间
-楼主: (1-2 sentences, Korean only)
-[1] (comment in Korean)
-[2] (comment in Korean)
-[3] (comment in Korean)
-(5-8 comments total per post)
+楼主: (2-3 sentences in Korean, this is the original poster)
+[1] (first comment in Korean)
+[2] (second comment in Korean)
+...
+[8-12 comments total per post, mix of reactions: supportive, skeptical, funny, analytical, emotional)
 
-Title topics: netizens reacting to the latest idol news/drama/scandals related to the characters. Posts should feel like real Korean forum posts — some supportive, some skeptical, some funny. The tone varies from post to post.
+Posts should cover varied angles — some discussing the main event, some picking up on minor details, some comparing to other groups, some purely fan reactions. The tone should feel like a real Korean forum: informal, emotive, sometimes using slang/abbreviations (ㅋㅋㅋ, ㄷㄷ, 헐, 진짜?, etc). Different posts should have different moods — some hype threads, some critical analysis, some just fan-screaming.
 
 Recent events:
 ${recentMsgs}`;
 
             const doGen = SillyTavern.generateQuietPrompt();
-            const result = await doGen(prompt, false, true, null, 'TheQoo Bot', 1500);
+            const result = await doGen(prompt, false, true, null, 'TheQoo Bot', 3000);
 
             // Parse generated content into posts
             const newPosts = parseQooPosts(result || '');
