@@ -49,6 +49,16 @@ const CSS = `
 .phone-navbar-title { font-size:16px; font-weight:700; }
 .phone-empty { text-align:center; color:rgba(255,255,255,0.25); padding:60px 20px; font-size:13px; }
 .future-tag { font-size:10px; background:rgba(108,92,231,0.3); color:#6c5ce7; padding:1px 6px; border-radius:6px; margin-left:6px; }
+.cal-phase { padding:12px 14px; border-left:2px solid rgba(255,255,255,0.1); margin-left:8px; position:relative; }
+.cal-phase:last-child { border-left-color:transparent; }
+.cal-phase::before { content:''; width:8px; height:8px; border-radius:50%; background:#333; position:absolute; left:-5px; top:15px; }
+.cal-phase.current { border-left-color:#6c5ce7; }
+.cal-phase.current::before { background:#6c5ce7; box-shadow:0 0 6px #6c5ce7; }
+.cal-phase.past { border-left-color:rgba(255,255,255,0.05); opacity:0.35; }
+.cal-phase.past::before { background:#222; }
+.cal-phase-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+.cal-phase-date { font-size:10px; color:rgba(255,255,255,0.35); margin-bottom:4px; }
+.cal-phase-desc { font-size:11px; color:rgba(255,255,255,0.5); line-height:1.4; }
 </style>
 `;
 
@@ -224,6 +234,54 @@ function showYouTube(dom) {
     bindBack(dom);
 }
 
+// ===================== Calendar =====================
+
+function showCalendar(dom) {
+    const body = dom.querySelector('#phone-body');
+    let h = '<div class="phone-navbar"><div class="phone-navbar-back" data-back="desktop">‹</div><div class="phone-navbar-title">Calendar</div></div>';
+
+    try {
+        const mvu = Mvu?.getMvuData?.({ type:'message', message_id:'latest' });
+        const schedule = _.get(mvu, 'stat_data.flywings.回归日程.日程');
+        const worldDate = getNowDate();
+        const currentPhase = _.get(mvu, 'stat_data.flywings.回归日程.当前阶段') || '';
+
+        if (!schedule || _.isEmpty(schedule)) {
+            body.innerHTML = h + '<div class="phone-empty">暂无行程安排</div>';
+            bindBack(dom);
+            return;
+        }
+
+        h += '<div style="padding:8px 16px;">';
+        Object.entries(schedule).forEach(([name, info]) => {
+            const start = info.开始 || info.日期 || '';
+            const end = info.结束 || '';
+            const dateRange = start && end ? `${start} → ${end}` : start;
+            const desc = info.内容 || '';
+
+            // 判断状态：当前、过去、未来
+            let cls = '';
+            if (currentPhase === name) {
+                cls = ' current';
+            } else if (end && worldDate && dateNum(end) < dateNum(worldDate)) {
+                cls = ' past';
+            }
+
+            h += `<div class="cal-phase${cls}">
+                <div class="cal-phase-title">${cls.includes('current')?'● ':''}${_.escape(name)}</div>
+                <div class="cal-phase-date">${_.escape(dateRange)}</div>
+                <div class="cal-phase-desc">${_.escape(desc)}</div>
+            </div>`;
+        });
+        h += '</div>';
+    } catch(e) {
+        h += '<div class="phone-empty">读取日程失败</div>';
+    }
+
+    body.innerHTML = h;
+    bindBack(dom);
+}
+
 // ===================== 桌面 =====================
 
 function showDesktop(dom) {
@@ -238,11 +296,16 @@ function showDesktop(dom) {
             <div class="desktop-app-icon" style="background:#1a1a1a;">▶</div>
             <div class="desktop-app-label">YouTube</div>
         </div>
+        <div class="desktop-app" data-app="calendar">
+            <div class="desktop-app-icon" style="background:#1a1a2a;">📅</div>
+            <div class="desktop-app-label">Calendar</div>
+        </div>
     </div>`;
     dom.querySelectorAll('.desktop-app').forEach(el => {
         el.addEventListener('click', () => {
             if (el.dataset.app === 'kakaotalk') showKakaoTalk(dom);
-            else showYouTube(dom);
+            else if (el.dataset.app === 'youtube') showYouTube(dom);
+            else if (el.dataset.app === 'calendar') showCalendar(dom);
         });
     });
 }
