@@ -363,3 +363,4 @@ async function showPhone() {
 ensureAllEntries();
 replaceScriptButtons([{ name: '📱 手机', visible: true }]);
 eventOn(getButtonEvent('📱 手机'), showPhone);
+toastr.success('Smartphone 已加载', 'Flywings', { timeOut: 2000 });
